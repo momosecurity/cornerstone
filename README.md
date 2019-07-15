@@ -1,15 +1,25 @@
-### 准备：
+### 关于我们
+___
+Website：[https://security.immomo.com](https://security.immomo.com)
 
+WeChat:<br>
+<img src="https://momo-mmsrc.oss-cn-hangzhou.aliyuncs.com/img-1c96a083-7392-3b72-8aec-bad201a6abab.jpeg" width="200" hegiht="200" align=center /><br>
+
+[项目介绍](https://mp.weixin.qq.com/s?__biz=MzI2OTYzOTQzNw==&mid=2247484811&idx=1&sn=cd27473f6441d8b99da1b5f2f20a73bb&chksm=eadc0fe9ddab86ff21b191f53de79afea0f5063a978a76beefe641da95403e2fdf79c168488a&token=588906132&lang=zh_CN#rd)
+
+
+### 准备
+___
 安装并启用syslog服务，做好对应日志级别（根据LOGGER函数中所使用的facility.severity）及权限的配置。
 
-### 安装：
-
+### 安装
+___
 1. 将momosec\_bashrc放在/etc/下，权限修改为644，属组为root
 2. 在/etc/bashrc中加载该文件，如[ -f /etc/momosec\_bashrc ] && . /etc/momosec\_bashrc
 
 
-### 效果：
-
+### 效果
+___
 收集到的每条日志格式如下：
 
 [syslog_part]: [ssh\_client\_ip] [server_name] [server_ip] [login_time] [ssh_pid] [tty] [login_user] [sudo_user] [pwd] [cmd]
@@ -28,8 +38,8 @@
 
 ![example](https://github.com/momosecurity/cornerstone/raw/master/img/example.gif)
 
-### 覆盖功能：
-
+### 覆盖功能
+___
 | 功能项 | 命令记录转发 | 
 | ------------ |------------ |
 |身份识别|✔︎|
@@ -44,10 +54,3 @@
 |非bash shell上执行的命令|✘|
 
 
-### 关于我们
-Website：[https://security.immomo.com](https://security.immomo.com)
-
-WeChat:<br>
-<img src="https://momo-mmsrc.oss-cn-hangzhou.aliyuncs.com/img-1c96a083-7392-3b72-8aec-bad201a6abab.jpeg" width="200" hegiht="200" align=center /><br>
-
-[项目介绍](https://mp.weixin.qq.com/s?__biz=MzI2OTYzOTQzNw==&mid=2247484811&idx=1&sn=cd27473f6441d8b99da1b5f2f20a73bb&chksm=eadc0fe9ddab86ff21b191f53de79afea0f5063a978a76beefe641da95403e2fdf79c168488a&token=588906132&lang=zh_CN#rd)
