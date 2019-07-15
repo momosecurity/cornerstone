@@ -1,1 +1,196 @@
-# momosec_bashrc
+#################################
+# Project momosec               #
+# Author: LOsiNcerE && zilos    #
+# Date:   2019.6.11             #
+#################################
+
+if [ "${SHELL##*/}" != "bash" ]; then
+  return
+fi
+
+#to avoid sourcing this file more than once
+if [ "$AUDIT_INCLUDED" == "$$" ];  then
+  return
+else
+  declare -r AUDIT_INCLUDED="$$"
+fi
+
+declare -rx AUDIT_FILE="/etc/momosec_bashrc"
+
+#for non-interactive shell
+if [[ -n $BASH_ENV ]]
+then
+  declare -x BASH_ENV="$BASH_ENV:$AUDIT_FILE"
+else
+  declare -x BASH_ENV=$AUDIT_FILE
+fi
+#for sh(POSIX)
+if [[ -n $ENV ]]
+then
+  declare -x ENV="$ENV:$AUDIT_FILE"
+else
+  declare -x ENV=$AUDIT_FILE
+fi
+
+#'history' options
+declare -rx HISTFILE="$HOME/.bash_history"
+declare -rx HISTSIZE=4000                                 #nbr of cmds in memory
+declare -rx HISTFILESIZE=4000                             #nbr of cmds on file
+declare -rx HISTCONTROL=""                                  #does not ignore spaces or duplicates
+declare -rx HISTIGNORE=""                                   #does not ignore patterns
+declare -rx HISTCMD                                         #history line number
+declare -rx HISTTIMEFORMAT="%Y-%m-%d %T :: "
+
+#history substitution ask for a confirmation
+#shopt -s histverify
+#shopt -s histappend
+shopt -s cmdhist
+shopt -s extglob                                            #enable extended pattern matching operators
+
+if [ -f /proc/$$/cmdline ]
+then
+  CMDLINE="$(/bin/cat /proc/$$/cmdline)"
+  CMDLINE=${CMDLINE#*bash-c}
+else
+  CMDLINE="-"
+fi
+#bash audit & traceability
+if [[ -n $(/usr/bin/who -m | /bin/awk '{print $1}') ]]
+then
+  declare -rx AUDIT_LOGINUSER="$(/usr/bin/who -m | /bin/awk '{print $1}')"
+else
+  if [ -f /proc/$$/stat ]
+  then
+    AUDIT_SID="$(/bin/awk '{print $6}' /proc/$$/stat)"
+    if [ -f /proc/$AUDIT_SID/loginuid ]
+    then
+      AUDIT_LOGINUID="$(/bin/cat /proc/$AUDIT_SID/loginuid)"
+    else
+      AUDIT_LOGINUID=
+    fi
+    if [[ -n $AUDIT_LOGINUID ]]
+    then
+      declare -rx AUDIT_LOGINUSER="$(/usr/bin/getent passwd $AUDIT_LOGINUID | /bin/awk -F ':' '{print $1}')"
+    else
+      declare -rx AUDIT_LOGINUSER="-"
+    fi
+  else
+    declare -rx AUDIT_LOGINUSER="-"
+  fi
+fi
+if [[ -n $USER ]]
+then
+  declare -rx AUDIT_USER="$USER"                              #defined by pam during su/sudo
+else
+  declare -rx AUDIT_USER="-"
+fi
+if [[ ! "$(/usr/bin/tty)" =~ "tty" ]]
+then
+  declare -rx AUDIT_TTY="$(/usr/bin/tty | /bin/awk -F '/' '{print $3"/"$4}')"
+else
+  declare -rx AUDIT_TTY="-"
+fi
+declare -x AUDIT_LASTHISTLINE=""                            #to avoid logging the same line twice
+if [[ -n $HOSTNAME ]]
+then
+  declare -rx AUDIT_HOSTNAME="$HOSTNAME"
+else
+  declare -rx AUDIT_HOSTNAME="-"
+fi
+TMP_SSH_CLIENT_IP="$(/usr/bin/who -mu |/bin/awk -F'[()]' '{print $2}')"
+if [[ $TMP_SSH_CLIENT_IP =~ "." && ! $TMP_SSH_CLIENT_IP =~ "pts" ]]
+then
+  declare -rx AUDIT_SSH_CLIENT_IP=$TMP_SSH_CLIENT_IP
+elif [[ "$(/bin/echo $SSH_CONNECTION | /bin/awk '{print $1}')" =~ "." ]]
+then
+  declare -rx AUDIT_SSH_CLIENT_IP="$(/bin/echo $SSH_CONNECTION | /bin/awk '{print $1}')"
+else
+  declare -rx AUDIT_SSH_CLIENT_IP="127.0.0.1"
+fi
+if [[ -n $(/bin/date +%FT%H:%M:%S) ]]
+then
+  declare -rx AUDIT_LOGINTIME="$(/bin/date +%FT%H:%M:%S)"
+else
+  declare -rx AUDIT_LOGINTIME="-"
+fi
+TMP_IP="$(/sbin/ip a|/bin/grep -w 'inet'| /bin/grep 'brd'| /bin/awk '{print $2}')"
+if [[ -n ${TMP_IP%%/*} ]]
+then
+  declare -rx AUDIT_IP=${TMP_IP%%/*}
+else
+  declare -rx AUDIT_IP="-"
+fi
+if [ -f /usr/bin/pstree ]
+then
+  TMP_SSHD="$(/usr/bin/pstree -p | /bin/grep $$)"
+elif [ -f /bin/pstree ]
+then
+  TMP_SSHD="$(/bin/pstree -p | /bin/grep $$)"
+else
+  TMP_SSHD=""
+fi
+if [[ -n $TMP_SSHD ]]
+then
+  if [[ "$(/bin/echo $TMP_SSHD | /bin/awk -F '[()]' '{print $5}')" =~ "sshd" ]]
+  then
+    declare -rx AUDIT_SSHPID="$(/bin/echo $TMP_SSHD | /bin/awk -F '[()]' '{print $4}')"
+  elif [[ "$(/bin/echo $TMP_SSHD | /bin/awk -F '[()]' '{print $1}')" =~ "sshd" ]]
+  then
+    declare -rx AUDIT_SSHPID="$(/bin/echo $TMP_SSHD | /bin/awk -F '[()]' '{print $2}')"
+  else
+    declare -rx AUDIT_SSHPID="-"
+  fi
+else
+  declare -rx AUDIT_SSHPID="-"
+fi
+declare -rx AUDIT_STR="${AUDIT_SSH_CLIENT_IP} ${AUDIT_HOSTNAME} ${AUDIT_IP} ${AUDIT_LOGINTIME} ${AUDIT_SSHPID} ${AUDIT_TTY} ${AUDIT_LOGINUSER} ${AUDIT_USER}"
+
+
+function LOGGER() {
+  #remove in last history cmd its line number (if any) and send to syslog
+  TMP_CMD=${AUDIT_CMD##*:}
+  if [ "$TMP_CMD" != " trap 'AUDIT_DEBUG \"\$_\"' DEBUG" ]
+  then
+    /bin/logger -p local6.notice "{}$AUDIT_STR $PWD ${AUDIT_CMD}"
+  fi
+}
+
+#return when it run from script, for $_ can perform correctly
+#audit non-interactive shell
+if [[ ! $- =~ "i" ]];
+then    #non-interactive shell then do
+  AUDIT_CMD=" 0000  $(/bin/date +%F\ %H:%M:%S) :: $CMDLINE"
+  LOGGER
+fi
+if [[ ! "$(/usr/bin/tty)" =~ "/dev" ]] && [[ $CMDLINE == "bash" || $CMDLINE == "-bash" || $CMDLINE == "sh" || $CMDLINE == "-sh" || $CMDLINE == "/bin/bash" || $CMDLINE == "/bin/sh" ]]      #for notty shell cmd audit
+then
+      set -o history
+elif [[ ! $- =~ "i" ]] && [[ "$(shopt login_shell)" =~ "off"  ]]  #if run script through ssh, return
+then
+  return
+fi
+
+if [[ ! $- =~ "i" ]] && [[ "$(shopt login_shell)" =~ "off"  ]] && [[ "$(/usr/bin/tty)" =~ "/dev" ]]     #script from normal shell
+then
+  return
+fi
+
+function AUDIT_DEBUG() {
+  if [ -z "$AUDIT_LASTHISTLINE" ]; then                     #initialization
+    local AUDIT_CMD="$(fc -l -1 -1 2>/dev/null)"                       #previous history command
+    AUDIT_LASTHISTLINE="${AUDIT_CMD%%+([^ 0-9])*}"
+  else
+    AUDIT_LASTHISTLINE="$AUDIT_HISTLINE"
+  fi
+  local AUDIT_CMD="$(history 1)"                            #current history command
+  AUDIT_HISTLINE=$(/bin/echo $AUDIT_CMD |/bin/awk '{print $1}')
+  if [ "$AUDIT_HISTLINE" != "$AUDIT_LASTHISTLINE" ] || [ "$AUDIT_HISTLINE" = "1" ]; then  #avoid logging unexecuted commands after 'ctrl-c', 'empty+enter', or after 'ctrl-d'
+    LOGGER
+  fi
+}
+
+#make audit trap functions readonly; disable trap DEBUG inherited (normally the default setting already)
+declare -frx +t AUDIT_DEBUG
+
+declare -rx PROMPT_COMMAND="[ -z \"\$AUDIT_INCLUDED\" ] && source $AUDIT_FILE;"
+trap 'AUDIT_DEBUG "$_"' DEBUG
